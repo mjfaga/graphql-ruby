@@ -5,11 +5,11 @@ require "set"
 require "singleton"
 require "forwardable"
 
-class Object
-  def graphql_lazy?
-    false
-  end
-end
+# class Object
+#   def graphql_lazy?
+#     false
+#   end
+# end
 
 module GraphQL
   # forwards-compat for argument handling

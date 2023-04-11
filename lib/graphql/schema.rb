@@ -1091,7 +1091,7 @@ module GraphQL
       # @return [Object] A GraphQL-ready (non-lazy) object
       # @api private
       def sync_lazy(value)
-        if value.graphql_lazy?
+        if value.respond_to?(:graphql_lazy?) && value.graphql_lazy?
           value = value.graphql_lazy_resolve
           sync_lazy(value)
         else

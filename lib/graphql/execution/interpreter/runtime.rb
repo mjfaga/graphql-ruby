@@ -1037,7 +1037,7 @@ module GraphQL
         end
 
         def lazy?(object)
-          object.graphql_lazy?
+          object.respond_to?(:graphql_lazy?) && object.graphql_lazy?
         end
       end
     end
