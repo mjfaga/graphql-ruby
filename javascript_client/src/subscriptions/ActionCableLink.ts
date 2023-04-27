@@ -10,15 +10,17 @@ class ActionCableLink extends ApolloLink {
   channelName: string
   actionName: string
   connectionParams: ConnectionParams
+  performOptions?: Function
 
   constructor(options: {
-    cable: Consumer, channelName?: string, actionName?: string, connectionParams?: ConnectionParams
+    cable: Consumer, channelName?: string, actionName?: string, connectionParams?: ConnectionParams, performOptions?: Function,
   }) {
     super()
     this.cable = options.cable
     this.channelName = options.channelName || "GraphqlChannel"
     this.actionName = options.actionName || "execute"
     this.connectionParams = options.connectionParams || {}
+    this.performOptions = options.performOptions
   }
 
   // Interestingly, this link does _not_ call through to `next` because
@@ -29,21 +31,23 @@ class ActionCableLink extends ApolloLink {
       var actionName = this.actionName
       var connectionParams = (typeof this.connectionParams === "function") ?
         this.connectionParams(operation) : this.connectionParams
+      var performOptions = this.performOptions
       var channel = this.cable.subscriptions.create(Object.assign({},{
         channel: this.channelName,
         channelId: channelId
       }, connectionParams), {
         connected: function() {
-          this.perform(
-            actionName,
-            {
-              query: operation.query ? print(operation.query) : null,
-              variables: operation.variables,
-              // This is added for persisted operation support:
-              operationId: (operation as {operationId?: string}).operationId,
-              operationName: operation.operationName
-            }
-          )
+          // call this function if it's provided to get extra params for this ActionCable call
+          var extraOptions = performOptions ? performOptions() : {}
+          var baseOptions = {
+            query: operation.query ? print(operation.query) : null,
+            variables: operation.variables,
+            // This is added for persisted operation support:
+            operationId: (operation as {operationId?: string}).operationId,
+            operationName: operation.operationName
+          }
+          var allOptions = Object.assign(baseOptions, extraOptions)
+          this.perform(actionName, allOptions)
         },
         received: function(payload) {
           if (payload?.result?.data || payload?.result?.errors) {
