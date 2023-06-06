@@ -130,6 +130,47 @@ describe GraphQL::Schema::Scalar do
       query(Query)
     end
 
+    describe "runtime info in the error message" do
+      class ScalarRuntimeContextSchema < GraphQL::Schema
+        class QueryRoot < GraphQL::Schema::Object
+          field :val, Integer, null: true do |f|
+            f.argument :int, Integer, required: true
+          end
+
+          def val(int:)
+            int
+          end
+        end
+        query(QueryRoot)
+
+        def self.type_error(err, ctx)
+          case err
+          when GraphQL::IntegerDecodingError, GraphQL::IntegerEncodingError
+            errs = ctx[:integer_errors] ||= []
+            errs << "Error: #{err.message.inspect} from #{ctx[:current_path]&.join(".").inspect}"
+            err.integer_value
+          else
+            super
+          end
+        end
+      end
+
+      it "is there" do
+        query_str = "query { val(int: 2147483648) }"
+        res = ScalarRuntimeContextSchema.execute(query_str)
+        expected_errs = [
+          # This error was from validation, there wasn't any runtime context yet:
+          "Error: \"Integer out of bounds: 2147483648. \\nConsider using GraphQL::Types::BigInt instead.\" from nil",
+          # This was when coercing the input at runtime:
+          "Error: \"Integer out of bounds: 2147483648. \\nConsider using GraphQL::Types::BigInt instead.\" from \"val\"",
+          # This was when returning the input after executing the field:
+          "Error: \"Integer out of bounds: 2147483648 @ val (QueryRoot.val). Consider using ID or GraphQL::Types::BigInt instead.\" from \"val\"",
+        ]
+        assert_equal expected_errs, res.context[:integer_errors]
+        assert_equal 2147483648, res["data"]["val"]
+      end
+    end
+
     it "makes a nice validation error" do
       result = CoercionErrorSchema.execute("{ f1(arg: \"a\") }")
       expected_error = {
